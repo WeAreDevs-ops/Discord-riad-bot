@@ -1,0 +1,16 @@
+{
+  "name": "discord-userinstall-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot that works with User Install and global slash commands",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "author": "YourName",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.0",
+    "dotenv": "^16.3.1"
+  }
+}
