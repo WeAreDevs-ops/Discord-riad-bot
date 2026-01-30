@@ -12,7 +12,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 user_messages = {}  # Store user messages
 
 class SpamView(discord.ui.View):
-    def __init__(self, message, interval_seconds=0.2, repeat_interval=None):
+    def __init__(self, message, interval_seconds=0.2, repeat_interval=1):
         """
         message: str -> message to spam
         interval_seconds: float -> delay between messages (default 0.2s)
@@ -31,7 +31,7 @@ class SpamView(discord.ui.View):
         )
 
         # Send exactly 10 messages reliably
-        for i in range(10):
+        for i in range(6):
             try:
                 await interaction.followup.send(self.message)
                 await asyncio.sleep(self.interval)
