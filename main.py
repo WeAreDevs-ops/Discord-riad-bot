@@ -28,7 +28,7 @@ class SpamView(discord.ui.View):
         for _ in range(10):
             try:
                 await interaction.followup.send(self.message)
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(0.2)
             except Exception as e:
                 print("Spam error:", e)
                 break
