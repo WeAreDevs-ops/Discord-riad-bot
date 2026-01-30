@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, InteractionType, ComponentType } from 'discord.js';
-import asyncio from 'node:timers/promises';
+import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, InteractionType } from 'discord.js';
 
+// Environment variables
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID; // Your bot application ID
 
@@ -20,8 +20,8 @@ const commands = [
         .setDescription('Setup the message to be spammed')
         .addStringOption(option =>
             option.setName('message')
-                  .setDescription('The message you want to spam')
-                  .setRequired(true)
+                .setDescription('The message you want to spam')
+                .setRequired(true)
         )
         .toJSON()
 ];
@@ -42,7 +42,8 @@ client.once('ready', async () => {
 
 // Handle slash commands
 client.on('interactionCreate', async (interaction) => {
-    if (interaction.type !== InteractionType.ApplicationCommand) return;
+    if (!interaction.isChatInputCommand()) return;
+
     if (interaction.commandName === 'setmessage') {
         const message = interaction.options.getString('message');
         userMessages.set(interaction.user.id, message);
@@ -62,20 +63,15 @@ client.on('interactionCreate', async (interaction) => {
 
         const row = new ActionRowBuilder().addComponents(button);
 
-        // Send reply based on context
-        if (!interaction.guild) {
-            // DM
-            await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-        } else {
-            // Server
-            await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-        }
+        // Reply with embed and button (ephemeral)
+        await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 });
 
 // Handle button clicks
 client.on('interactionCreate', async (interaction) => {
-    if (interaction.type !== InteractionType.MessageComponent) return;
+    if (!interaction.isButton()) return;
+
     if (interaction.customId === 'activate') {
         const userId = interaction.user.id;
         const message = userMessages.get(userId);
@@ -85,16 +81,22 @@ client.on('interactionCreate', async (interaction) => {
             return;
         }
 
+        // Acknowledge button press
         await interaction.reply({ content: 'Starting to send messages...', ephemeral: true });
 
-        // Determine where to send
-        const targetChannel = interaction.channel;
+        // Determine where to send messages safely
+        const targetChannel = interaction.channel ?? interaction.user.dmChannel;
 
-        // Spam 10 times with short delay
+        if (!targetChannel) {
+            await interaction.followUp({ content: 'Cannot send messages: no valid channel.', ephemeral: true });
+            return;
+        }
+
+        // Spam message 10 times with 0.3s delay
         for (let i = 0; i < 10; i++) {
             try {
                 await targetChannel.send(message);
-                await asyncio.setTimeout(300); // 0.3s delay
+                await new Promise(res => setTimeout(res, 300));
             } catch (err) {
                 console.error('Failed to send message:', err);
             }
@@ -102,4 +104,5 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+// Login
 client.login(TOKEN);
