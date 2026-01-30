@@ -49,7 +49,7 @@ class SpamView(discord.ui.View):
         """
         @tasks.loop(seconds=self.repeat_interval)
         async def repeat():
-            for i in range(10):
+            for i in range(6):
                 try:
                     await interaction.followup.send(self.message)
                     await asyncio.sleep(self.interval)
