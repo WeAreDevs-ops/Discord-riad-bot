@@ -1,66 +1,99 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
-import os
-import asyncio
+// main.js
+import 'dotenv/config';
+import { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, REST, Routes, SlashCommandBuilder } from 'discord.js';
 
-# Retrieve the token from environment variables (Secrets)
-TOKEN = os.getenv('DISCORD_TOKEN')
+const TOKEN = process.env.DISCORD_TOKEN;
+if (!TOKEN) throw new Error("DISCORD_TOKEN not found in environment variables");
 
-class MyBot(commands.Bot):
-    def __init__(self):
-        intents = discord.Intents.default()
-        intents.message_content = True
-        super().__init__(command_prefix="!", intents=intents)
+// Create bot client
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent
+    ],
+    partials: [Partials.Channel] // Needed for DMs
+});
 
-    async def setup_hook(self):
-        # Sync slash commands **globally**
-        await self.tree.sync(guild=None)  # <-- THIS MAKES THEM GLOBAL
-        print(f"Synced global slash commands for {self.user}")
+// In-memory storage for user messages
+const userMessages = new Map();
 
-bot = MyBot()
+// Define slash command
+const commands = [
+    new SlashCommandBuilder()
+        .setName('setmessage')
+        .setDescription('Setup the message to be spammed')
+        .addStringOption(option =>
+            option.setName('message')
+                .setDescription('The message you want to spam')
+                .setRequired(true))
+        .toJSON()
+];
 
-# Simple storage for user messages (in-memory)
-user_messages = {}
+// Register global slash commands
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+(async () => {
+    try {
+        console.log('Started refreshing application (/) commands.');
+        await rest.put(Routes.applicationCommands(client.user?.id ?? 'YOUR_CLIENT_ID'), { body: commands });
+        console.log('Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error(error);
+    }
+})();
 
-class SpamView(discord.ui.View):
-    def __init__(self, message_content, user_id):
-        super().__init__(timeout=None)
-        self.message_content = message_content
-        self.user_id = user_id
+// Handle slash commands
+client.on(Events.InteractionCreate, async interaction => {
+    if (!interaction.isChatInputCommand() && !interaction.isButton()) return;
 
-    @discord.ui.button(label="Activate", style=discord.ButtonStyle.green)
-    async def activate(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Ephemeral messages are already private, but we acknowledge the action
-        await interaction.response.send_message("Starting to send messages...", ephemeral=True)
-        
-        for _ in range(10):
-            await interaction.channel.send(self.message_content)
-            await asyncio.sleep(0.5)  # Slight delay to avoid aggressive rate limiting
+    if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === 'setmessage') {
+            const message = interaction.options.getString('message');
+            userMessages.set(interaction.user.id, message);
 
-@bot.tree.command(name="setmessage", description="Setup the message to be spammed")
-@app_commands.describe(message="The message you want to spam")
-async def setmessage(interaction: discord.Interaction, message: str):
-    user_messages[interaction.user.id] = message
-    
-    embed = discord.Embed(
-        title="Message Setup Complete",
-        description=f"Your message is set to: **{message}**\n\nClick the button below to send it 10 times in this channel.",
-        color=discord.Color.blue()
-    )
-    
-    view = SpamView(message, interaction.user.id)
-    
-    # Send as ephemeral so only the user sees it
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            // Create a button
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('activate')
+                        .setLabel('Activate')
+                        .setStyle(ButtonStyle.Success)
+                );
 
-@bot.event
-async def on_ready():
-    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    print('------')
+            await interaction.reply({
+                content: `Your message is set to: **${message}**\nClick the button below to send it 10 times.`,
+                components: [row],
+                ephemeral: true
+            });
+        }
+    }
 
-if __name__ == "__main__":
-    if not TOKEN:
-        print("Error: DISCORD_TOKEN not found in environment variables.")
-    else:
-        bot.run(TOKEN)
+    if (interaction.isButton()) {
+        if (interaction.customId === 'activate') {
+            const message = userMessages.get(interaction.user.id);
+            if (!message) {
+                await interaction.reply({ content: 'You have not set a message yet.', ephemeral: true });
+                return;
+            }
+
+            await interaction.reply({ content: 'Starting to send messages...', ephemeral: true });
+
+            // Send 10 messages with slight delay
+            for (let i = 0; i < 10; i++) {
+                try {
+                    await interaction.channel.send(message);
+                    await new Promise(res => setTimeout(res, 300)); // 0.3s delay
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+        }
+    }
+});
+
+// Log in
+client.once(Events.ClientReady, c => {
+    console.log(`Logged in as ${c.user.tag}`);
+});
+
+client.login(TOKEN);
