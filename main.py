@@ -67,13 +67,13 @@ async def setmessage(interaction: discord.Interaction, message: str):
 
 
 # =========================
-# NEW AUTO SPAM SYSTEM
+# NEW AUTO SPAM SYSTEM (Mimic manual button)
 # =========================
-async def auto_spam_loop(channel, message, user_id):
+async def auto_spam_loop(interaction, message, user_id, interval=0.2):
     while user_id in auto_spam_tasks:
         try:
-            await channel.send(message)
-            await asyncio.sleep(0.2)  # safer delay
+            await interaction.followup.send(message)
+            await asyncio.sleep(interval)
         except Exception as e:
             print("Auto spam error:", e)
             break
@@ -105,7 +105,7 @@ async def autospam(interaction: discord.Interaction):
     )
 
     task = asyncio.create_task(
-        auto_spam_loop(interaction.channel, message, interaction.user.id)
+        auto_spam_loop(interaction, message, interaction.user.id, interval=0.2)
     )
 
     auto_spam_tasks[interaction.user.id] = task
