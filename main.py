@@ -6,16 +6,21 @@ import asyncio
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
+# ✅ FIXED INTENT WARNING
 intents = discord.Intents.default()
+intents.message_content = True
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 user_messages = {}  # Store user messages
+auto_spam_tasks = {}  # Store running auto spam tasks
+
 
 class SpamView(discord.ui.View):
     def __init__(self, message, interval_seconds=0.2):
         """
         message: str -> message to spam
-        interval_seconds: float -> delay between messages (default 0.2s)
+        interval_seconds: float -> delay between messages
         """
         super().__init__(timeout=None)
         self.message = message
@@ -38,6 +43,9 @@ class SpamView(discord.ui.View):
                 continue
 
 
+# =========================
+# EXISTING COMMAND (UNCHANGED)
+# =========================
 @bot.tree.command(name="setmessage", description="Setup the message to spam")
 @app_commands.describe(message="The message you want to spam")
 async def setmessage(interaction: discord.Interaction, message: str):
@@ -49,7 +57,6 @@ async def setmessage(interaction: discord.Interaction, message: str):
         color=discord.Color.blue()
     )
 
-    # Create the view without automation
     view = SpamView(message, interval_seconds=0.2)
 
     await interaction.response.send_message(
@@ -59,6 +66,73 @@ async def setmessage(interaction: discord.Interaction, message: str):
     )
 
 
+# =========================
+# NEW AUTO SPAM SYSTEM
+# =========================
+async def auto_spam_loop(channel, message, user_id):
+    while user_id in auto_spam_tasks:
+        try:
+            await channel.send(message)
+            await asyncio.sleep(0.5)  # safer delay
+        except Exception as e:
+            print("Auto spam error:", e)
+            break
+
+
+# START AUTO SPAM
+@bot.tree.command(name="autospam", description="Automatically keep sending your saved message")
+async def autospam(interaction: discord.Interaction):
+
+    message = user_messages.get(interaction.user.id)
+
+    if not message:
+        await interaction.response.send_message(
+            "⚠️ Set a message first using /setmessage",
+            ephemeral=True
+        )
+        return
+
+    if interaction.user.id in auto_spam_tasks:
+        await interaction.response.send_message(
+            "⚠️ Auto spam already running.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        "✅ Auto spam started.",
+        ephemeral=True
+    )
+
+    task = asyncio.create_task(
+        auto_spam_loop(interaction.channel, message, interaction.user.id)
+    )
+
+    auto_spam_tasks[interaction.user.id] = task
+
+
+# STOP AUTO SPAM
+@bot.tree.command(name="stopspam", description="Stop automatic spam")
+async def stopspam(interaction: discord.Interaction):
+
+    task = auto_spam_tasks.pop(interaction.user.id, None)
+
+    if task:
+        task.cancel()
+        await interaction.response.send_message(
+            "🛑 Auto spam stopped.",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "No auto spam running.",
+            ephemeral=True
+        )
+
+
+# =========================
+# READY EVENT
+# =========================
 @bot.event
 async def on_ready():
     await bot.tree.sync()
