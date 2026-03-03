@@ -73,7 +73,7 @@ async def auto_spam_loop(channel, message, user_id):
     while user_id in auto_spam_tasks:
         try:
             await channel.send(message)
-            await asyncio.sleep(0.5)  # safer delay
+            await asyncio.sleep(0.2)  # safer delay
         except Exception as e:
             print("Auto spam error:", e)
             break
